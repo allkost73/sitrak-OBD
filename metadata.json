@@ -1,6 +1,6 @@
 {
   "name": "Sitrak S7H Diagnostics & Tuning",
-  "description": "Android-optimized diagnostics, ECU parameter configuration, WABCO EC-APU pneumatics and EBS3 tractor/trailer brake distribution management, live CAN telemetry, multi-window workspace with split screens and floating HUD, DTC scanner, fuse diagram, and Google Drive cloud reporting for Sitrak S7H / C7H 480 heavy trucks.",
+  "description": "Android-optimized diagnostics, ECU parameter configuration, WABCO EC-APU pneumatics and EBS3 tractor/trailer brake distribution management, live CAN telemetry, multi-window workspace with split screens and floating HUD, DTC scanner, fuse diagram, and automated GitHub Actions Android APK compilation for Sitrak S7H / C7H 480 heavy trucks.",
   "requestFramePermissions": ["camera"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

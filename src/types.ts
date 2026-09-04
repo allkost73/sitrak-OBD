@@ -316,7 +316,8 @@ export type AppWindowId =
   | "pneumatics"
   | "actuators" 
   | "terminal" 
-  | "ai";
+  | "ai"
+  | "apk";
 
 export type WorkspaceLayout = 
   | "tabs" 

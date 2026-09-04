@@ -1345,6 +1345,12 @@ class ElmAdapterService {
       await this.sendCommand(`AT SH ${ecu.headerHex}`, undefined, 400);
     }
 
+    // Always restore CAN receive filter and auto-receive to prevent dropping subsequent frames
+    try {
+      await this.sendCommand("AT CRA", undefined, 300);
+      await this.sendCommand("AT AR", undefined, 300);
+    } catch {}
+
     const t1 = performance.now();
     const pingMs = Math.max(8, Math.round(t1 - t0));
 
@@ -1470,6 +1476,28 @@ class ElmAdapterService {
       protocol: this.protocol, 
       message: scanResult.summaryMessage || "Блоки не ответили ни на одном из протоколов. Убедитесь, что зажигание тягача включено." 
     };
+  }
+
+  // Wake-Up CAN Bus: Sends broadcast tester-present, resets ELM filters and stimulates sleeping nodes
+  public async wakeUpCanBus(): Promise<void> {
+    this.emitTerminal("system", ">>> Отправка импульса пробуждения CAN-шины Sitrak (CAN Wake-Up & Filter Reset)...");
+    try {
+      await this.sendCommand("AT CRA", "Сброс CAN фильтра (Auto-Receive)", 300);
+      await this.sendCommand("AT AR", "Включение авто-приема пакетов", 300);
+      await this.sendCommand("AT SH 18DB33F1", "Широковещательный заголовок", 400);
+      await this.sendCommand("3E00", "UDS Tester Present broadcast", 500);
+      await this.sendCommand("1001", "UDS Default Session broadcast", 500);
+      await this.sendCommand("AT SH 18DA00F1", "Прямой заголовок EDC17", 400);
+      await this.sendCommand("3E00", "EDC17 Wake-Up", 400);
+      await this.sendCommand("AT SH 18DA03F1", "Прямой заголовок TraXon", 400);
+      await this.sendCommand("3E00", "TraXon Wake-Up", 400);
+      await this.sendCommand("AT SH 18DA0BF1", "Прямой заголовок EBS3", 400);
+      await this.sendCommand("3E00", "EBS3 Wake-Up", 400);
+      await this.sendCommand("AT SH 18DB33F1", "Возврат к 18DB33F1", 300);
+      this.emitTerminal("system", "[+] Импульс пробуждения CAN-шины завершен.");
+    } catch (e: any) {
+      this.emitTerminal("error", `Ошибка пробуждения: ${e?.message || e}`);
+    }
   }
 
   // Scan all individual ECUs of the Sitrak truck with per-block progress and safe timeouts

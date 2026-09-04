@@ -10,7 +10,9 @@ import {
   Sliders,
   Terminal,
   Activity,
-  Power
+  Power,
+  Package,
+  GitBranch
 } from "lucide-react";
 import { AppWindowId } from "../types";
 
@@ -71,6 +73,13 @@ export const BottomMobileNav: React.FC<BottomMobileNavProps> = ({
       id: "ai" as AppWindowId,
       label: "ИИ",
       icon: Sparkles,
+      badge: null,
+      activeColor: "text-emerald-400 bg-emerald-500/15",
+    },
+    {
+      id: "apk" as AppWindowId,
+      label: "GitHub APK",
+      icon: GitBranch,
       badge: null,
       activeColor: "text-emerald-400 bg-emerald-500/15",
     },

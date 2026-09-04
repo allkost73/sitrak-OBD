@@ -24,7 +24,9 @@ import {
   Brain,
   Wrench,
   Search,
-  Check
+  Check,
+  Package,
+  GitBranch
 } from "lucide-react";
 import { AppWindowId, AppWindowState, DtcFault, ElmDeviceInfo, TelemetryData, TruckConfig, TruckProfile } from "../types";
 import { FloatingWindow } from "./FloatingWindow";
@@ -37,6 +39,7 @@ import { PneumaticsBrakeView } from "./PneumaticsBrakeView";
 import { ActuatorsView } from "./ActuatorsView";
 import { TerminalView } from "./TerminalView";
 import { AiAdvisorView } from "./AiAdvisorView";
+import { GitHubActionsApkView } from "./GitHubActionsApkView";
 
 interface MultiWindowWorkspaceProps {
   telemetry: TelemetryData;
@@ -172,6 +175,19 @@ const DEFAULT_WINDOWS: AppWindowState[] = [
     position: { x: 190, y: 160 },
     size: { width: 580, height: 460 },
     minSize: { width: 320, height: 300 },
+  },
+  {
+    id: "apk",
+    title: "Сборка Android APK в GitHub Actions",
+    shortTitle: "GitHub APK",
+    icon: "GitBranch",
+    isOpen: false,
+    isMinimized: false,
+    isMaximized: false,
+    zIndex: 5,
+    position: { x: 220, y: 100 },
+    size: { width: 720, height: 580 },
+    minSize: { width: 340, height: 320 },
   },
 ];
 
@@ -510,6 +526,8 @@ export const MultiWindowWorkspace: React.FC<MultiWindowWorkspaceProps> = ({
         return <Terminal className="w-4 h-4 text-cyan-400" />;
       case "ai":
         return <Sparkles className="w-4 h-4 text-emerald-400" />;
+      case "apk":
+        return <GitBranch className="w-4 h-4 text-emerald-400" />;
     }
   };
 
@@ -596,6 +614,8 @@ export const MultiWindowWorkspace: React.FC<MultiWindowWorkspaceProps> = ({
             initialQuestion={aiPrompt}
           />
         );
+      case "apk":
+        return <GitHubActionsApkView onNavigateToEcus={() => openWindow("ecus")} />;
     }
   };
 

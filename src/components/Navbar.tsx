@@ -24,7 +24,9 @@ import {
   Radio,
   Play,
   LogOut,
-  Power
+  Power,
+  Package,
+  GitBranch
 } from "lucide-react";
 import { AppWindowId, ElmDeviceInfo } from "../types";
 import { elmService } from "../services/elmAdapterService";
@@ -158,18 +160,6 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <HardDrive className="w-3.5 h-3.5 text-blue-400" />
             <span className="hidden sm:inline">Google Drive</span>
-          </button>
-
-          {/* Android APK Button */}
-          <button
-            id="btn-nav-apk"
-            onClick={onOpenApkModal}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 border border-emerald-500/40 hover:border-emerald-400 text-xs font-semibold transition-all shadow-sm active:scale-95"
-            title="Сборка и установка APK для Android"
-          >
-            <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="hidden sm:inline">Скачать APK</span>
-            <span className="sm:hidden font-mono">APK</span>
           </button>
 
           {/* Explicit Connection / Hardware Mode Status Button */}
@@ -355,6 +345,20 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <Sparkles className="w-4 h-4 text-emerald-400" />
               <span>ИИ Диагност</span>
+            </button>
+
+            <button
+              id="tab-apk"
+              onClick={() => setActiveTab("apk")}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all whitespace-nowrap ${
+                activeTab === "apk"
+                  ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shadow-inner"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-900"
+              }`}
+              title="Сборка APK через GitHub Actions"
+            >
+              <GitBranch className="w-4 h-4 text-emerald-400" />
+              <span>GitHub Actions APK</span>
             </button>
           </nav>
         </div>

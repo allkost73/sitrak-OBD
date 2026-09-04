@@ -74,6 +74,22 @@ export const EcuStatusView: React.FC<EcuStatusViewProps> = ({
     }
   };
 
+  const handleWakeUpAndScan = async () => {
+    setIsScanning(true);
+    setScanProgress({ percent: 5, currentName: "Отправка импульса пробуждения CAN..." });
+    try {
+      await elmService.wakeUpCanBus();
+      await elmService.scanAllEcus((pct, name) => {
+        setScanProgress({ percent: pct, currentName: name });
+      });
+    } catch (e) {
+      console.error("Wake-Up & Scan failed", e);
+    } finally {
+      setIsScanning(false);
+      setScanProgress({ percent: 100, currentName: "Пробуждение и опрос завершены" });
+    }
+  };
+
   const handleProbeSingle = async (ecu: EcuNodeScanResult) => {
     setProbingEcuId(ecu.id);
     try {
@@ -136,6 +152,18 @@ export const EcuStatusView: React.FC<EcuStatusViewProps> = ({
                 {onlineCount} из {totalCount} на связи
               </span>
             </div>
+
+            <button
+              id="btn-wake-up-can"
+              onClick={handleWakeUpAndScan}
+              disabled={isScanning}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl font-bold text-xs bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-500/40 shadow transition-all active:scale-95 disabled:opacity-50"
+              title="Отправить импульс пробуждения CAN и сбросить фильтры адаптера"
+            >
+              <Zap className="w-4 h-4 text-cyan-400" />
+              <span className="hidden sm:inline">Разбудить CAN шину</span>
+              <span className="sm:hidden">Wake-Up</span>
+            </button>
 
             <button
               id="btn-scan-all-ecus"

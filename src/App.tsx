@@ -15,6 +15,7 @@ import { MiniTelemetryPip } from "./components/MiniTelemetryPip";
 import { BluetoothConnectModal } from "./components/BluetoothConnectModal";
 import { DriveExportModal } from "./components/DriveExportModal";
 import { ApkExportModal } from "./components/ApkExportModal";
+import { GitHubActionsApkView } from "./components/GitHubActionsApkView";
 import { AppExitModal } from "./components/AppExitModal";
 import { elmService } from "./services/elmAdapterService";
 import { AppWindowId, DtcFault, ElmDeviceInfo, TelemetryData, TruckConfig, TruckProfile } from "./types";
@@ -286,6 +287,12 @@ export default function App() {
                 initialPrompt={aiSelectedPrompt}
               />
             )}
+
+            {activeTab === "apk" && (
+              <GitHubActionsApkView
+                onNavigateToEcus={() => setActiveTab("ecus")}
+              />
+            )}
           </div>
         )}
       </main>
@@ -342,6 +349,7 @@ export default function App() {
         isConnected={isConnected}
         onOpenConnectModal={() => setIsConnectModalOpen(true)}
         onOpenExitModal={() => setIsExitModalOpen(true)}
+        onOpenApkModal={() => setIsApkModalOpen(true)}
         dtcCount={dtcs.filter((d) => d.status === "active").length}
       />
     </div>
