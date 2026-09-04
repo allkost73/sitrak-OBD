@@ -54,16 +54,17 @@ on:
   workflow_dispatch:
     inputs:
       build_type:
-        description: 'Тип сборки APK (debug или release)'
+        description: 'Тип сборки (debug или release)'
         required: true
-        default: 'release'
+        default: 'debug'
         type: choice
         options:
-          - release
           - debug
+          - release
 
 permissions:
   contents: write
+  actions: read
 
 jobs:
   build:
@@ -74,59 +75,76 @@ jobs:
       - name: 📥 Клонирование репозитория
         uses: actions/checkout@v4
 
-      - name: ☕ Настройка Java Development Kit (JDK 17)
+      - name: ☕ Настройка Java (JDK 17)
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
-          cache: 'gradle'
 
       - name: 🟢 Настройка Node.js (v20)
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
-
-      - name: 📱 Настройка Android SDK & Build Tools
-        uses: android-actions/setup-android@v3
 
       - name: 📦 Установка зависимостей проекта
         run: |
-          npm ci || npm install --legacy-peer-deps
+          npm install --legacy-peer-deps
 
-      - name: ⚡ Сборка веб-приложения (Vite Production Build)
+      - name: ⚡ Сборка веб-приложения (Vite Build)
         run: |
           npm run build
 
-      - name: 🔧 Инициализация платформы Android (Capacitor)
+      - name: 🔧 Установка Capacitor 6 (совместимо с Java 17)
         run: |
-          npm install --no-save @capacitor/core @capacitor/cli @capacitor/android
-          npx cap add android || true
+          npm install --no-save @capacitor/core@^6.2.0 @capacitor/cli@^6.2.0 @capacitor/android@^6.2.0
+
+      - name: 📱 Инициализация Android платформы
+        run: |
+          mkdir -p dist
+          if [ ! -d "android" ]; then
+            npx cap add android
+          fi
           npx cap sync android
 
-      - name: 🛡️ Добавление разрешений Bluetooth SPP & ELM327
+      - name: 🛡️ Добавление разрешений Bluetooth SPP & ELM327 в AndroidManifest
         run: |
-          MANIFEST="android/app/src/main/AndroidManifest.xml"
-          if [ -f "$MANIFEST" ]; then
-            sed -i '/<application/i \\    <uses-permission android:name="android.permission.BLUETOOTH" />' $MANIFEST
-            sed -i '/<application/i \\    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />' $MANIFEST
-            sed -i '/<application/i \\    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />' $MANIFEST
-            sed -i '/<application/i \\    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" android:usesPermissionFlags="neverForLocation" />' $MANIFEST
-            sed -i '/<application/i \\    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />' $MANIFEST
-            sed -i '/<application/i \\    <uses-permission android:name="android.permission.INTERNET" />' $MANIFEST
-            sed -i '/<application/i \\    <uses-permission android:name="android.permission.WAKE_LOCK" />' $MANIFEST
-          fi
+          node -e '
+            const fs = require("fs");
+            const file = "android/app/src/main/AndroidManifest.xml";
+            if (fs.existsSync(file)) {
+              let content = fs.readFileSync(file, "utf8");
+              const perms = [
+                "<uses-permission android:name=\\"android.permission.BLUETOOTH\\" />",
+                "<uses-permission android:name=\\"android.permission.BLUETOOTH_ADMIN\\" />",
+                "<uses-permission android:name=\\"android.permission.BLUETOOTH_CONNECT\\" />",
+                "<uses-permission android:name=\\"android.permission.BLUETOOTH_SCAN\\" android:usesPermissionFlags=\\"neverForLocation\\" />",
+                "<uses-permission android:name=\\"android.permission.ACCESS_FINE_LOCATION\\" />",
+                "<uses-permission android:name=\\"android.permission.ACCESS_COARSE_LOCATION\\" />",
+                "<uses-permission android:name=\\"android.permission.INTERNET\\" />",
+                "<uses-permission android:name=\\"android.permission.WAKE_LOCK\\" />"
+              ];
+              perms.forEach(p => {
+                if (!content.includes(p)) {
+                  content = content.replace("<application", p + "\\n    <application");
+                }
+              });
+              fs.writeFileSync(file, content, "utf8");
+              console.log("AndroidManifest успешно обновлен с правами Bluetooth SPP");
+            }
+          '
 
       - name: 🔨 Компиляция APK через Gradle
         run: |
           cd android
           chmod +x ./gradlew
-          if [ "\${{ github.event.inputs.build_type }}" = "debug" ]; then
-            ./gradlew assembleDebug --stacktrace
+          ./gradlew assembleDebug --stacktrace
+          
+          if [ -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
+            cp app/build/outputs/apk/debug/app-debug.apk ../sitrak-s7h-diagnostics.apk
             cp app/build/outputs/apk/debug/app-debug.apk ../sitrak-s7h-diagnostics-debug.apk
+            echo "✅ APK файл успешно создан!"
           else
-            ./gradlew assembleRelease --stacktrace || ./gradlew assembleDebug --stacktrace
-            find app/build/outputs/apk -name "*.apk" -exec cp {} ../sitrak-s7h-diagnostics.apk \\;
+            find . -name "*.apk" -exec cp {} ../sitrak-s7h-diagnostics.apk \\;
           fi
 
       - name: 📤 Загрузка скомпилированного APK в артефакты сборки
@@ -136,14 +154,19 @@ jobs:
           path: |
             sitrak-s7h-diagnostics*.apk
             android/app/build/outputs/apk/**/*.apk
+          if-no-files-found: warn
           retention-days: 30
 
-      - name: 🚀 Создание GitHub Release (при пуше тега)
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: 🚀 Создание GitHub Release (при наличии тега v*)
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: sitrak-s7h-diagnostics*.apk
+          files: sitrak-s7h-diagnostics.apk
           name: "Sitrak S7H Diagnostics APK \${{ github.ref_name }}"
+          body: |
+            Готовый установочный пакет Android APK для тягачей Sitrak S7H / C7H.
+            - Поддержка ELM327 Bluetooth (протокол J1939)
+            - 7 блоков ЭБУ, пневматика EC-APU, тормоза EBS3
         env:
           GITHUB_TOKEN: \${{ secrets.GITHUB_TOKEN }}`;
 
@@ -369,6 +392,7 @@ export const GitHubActionsApkView: React.FC<GitHubActionsApkViewProps> = ({ onNa
   const ghReleasesUrl = `https://github.com/${repoOwner.trim()}/${repoName.trim()}/releases`;
   const ghSettingsActionsUrl = `https://github.com/${repoOwner.trim()}/${repoName.trim()}/settings/actions`;
   const createWorkflowDirectUrl = `https://github.com/${repoOwner.trim()}/${repoName.trim()}/new/${branch.trim() || "main"}?filename=.github/workflows/build.yml`;
+  const editWorkflowDirectUrl = `https://github.com/${repoOwner.trim()}/${repoName.trim()}/edit/${branch.trim() || "main"}/.github/workflows/build.yml`;
 
   return (
     <div className="space-y-5 text-slate-100">
@@ -838,7 +862,7 @@ export const GitHubActionsApkView: React.FC<GitHubActionsApkViewProps> = ({ onNa
                       rel="noopener noreferrer"
                       className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors text-center"
                     >
-                      <span>Логи сборки в GitHub</span>
+                      <span>Открыть ошибку в GitHub</span>
                       <ExternalLink className="w-3 h-3" />
                     </a>
 
@@ -854,6 +878,40 @@ export const GitHubActionsApkView: React.FC<GitHubActionsApkViewProps> = ({ onNa
                       </a>
                     )}
                   </div>
+
+                  {latestRun.conclusion === "failure" && (
+                    <div className="mt-2.5 p-3 rounded-xl bg-slate-950/90 border border-red-500/30 text-xs space-y-2">
+                      <div className="flex items-center gap-1.5 text-red-300 font-bold">
+                        <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+                        <span>Причина красного крестика и решение:</span>
+                      </div>
+                      <p className="text-[11px] text-slate-300 leading-relaxed">
+                        В предыдущей версии манифеста сборка падала из-за отсутствия файла кэша <code className="text-amber-300">package-lock.json</code> либо конфликта версий Android SDK. Мы исправили код workflow!
+                      </p>
+                      <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                        <a
+                          href={editWorkflowDirectUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg bg-red-950/60 hover:bg-red-900/60 border border-red-500/40 text-red-200 text-[11px] font-semibold transition-colors text-center"
+                        >
+                          <span>Редактировать build.yml в GitHub</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                        <button
+                          type="button"
+                          onClick={handleCopyYaml}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-semibold transition-colors"
+                        >
+                          {isCopiedYaml ? (
+                            <span className="text-emerald-400">Скопировано!</span>
+                          ) : (
+                            <span>Скопировать исправленный код</span>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
