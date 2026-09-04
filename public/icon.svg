@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="50%" stop-color="#020617"/>
+      <stop offset="100%" stop-color="#090d16"/>
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background with rounded rectangle for adaptive icon -->
+  <rect width="512" height="512" rx="110" fill="url(#bgGrad)" stroke="#1e293b" stroke-width="8"/>
+
+  <!-- Subtle grid lines -->
+  <path d="M 0 128 L 512 128 M 0 256 L 512 256 M 0 384 L 512 384 M 128 0 L 128 512 M 256 0 L 256 512 M 384 0 L 384 512" stroke="#1e293b" stroke-width="2" opacity="0.4"/>
+
+  <!-- Truck Cab Silhouette (Sitrak S7H / MAN TGX shape) -->
+  <g transform="translate(40, 20)">
+    <!-- Cab body -->
+    <path d="M 96 340 L 96 150 C 96 120 120 100 150 100 L 280 100 C 310 100 334 120 334 150 L 334 340 Z" fill="#1e293b" stroke="#334155" stroke-width="4"/>
+    <!-- Windshield -->
+    <path d="M 120 120 L 310 120 L 295 190 L 135 190 Z" fill="#0f172a" stroke="#06b6d4" stroke-width="3"/>
+    <!-- Sun visor -->
+    <path d="M 105 110 L 325 110 L 315 125 L 115 125 Z" fill="#06b6d4" opacity="0.8"/>
+    <!-- Grille & Headlights -->
+    <rect x="140" y="210" width="150" height="70" rx="8" fill="#090d16" stroke="#475569" stroke-width="2"/>
+    <line x1="150" y1="230" x2="280" y2="230" stroke="#64748b" stroke-width="3"/>
+    <line x1="150" y1="245" x2="280" y2="245" stroke="#64748b" stroke-width="3"/>
+    <line x1="150" y1="260" x2="280" y2="260" stroke="#64748b" stroke-width="3"/>
+    
+    <!-- Headlights -->
+    <polygon points="105,250 130,250 125,275 105,275" fill="#38bdf8"/>
+    <polygon points="325,250 300,250 305,275 325,275" fill="#38bdf8"/>
+  </g>
+
+  <!-- OBD-II Connector & Bluetooth Wave badge -->
+  <g transform="translate(180, 260)">
+    <circle cx="76" cy="76" r="82" fill="#020617" stroke="url(#accentGrad)" stroke-width="8"/>
+    
+    <!-- Bluetooth Icon -->
+    <path d="M 66 40 L 92 65 L 76 80 L 76 30 L 92 45 L 66 70 M 76 55 L 86 65 M 76 55 L 86 45" 
+          stroke="#10b981" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+    <!-- Pulse ECG Line -->
+    <path d="M 20 85 L 45 85 L 55 65 L 65 105 L 75 50 L 85 95 L 95 80 L 105 85 L 132 85" 
+          stroke="#06b6d4" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  </g>
+
+  <!-- Text: SITRAK OBD -->
+  <text x="256" y="465" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="40" fill="#f8fafc" letter-spacing="4">
+    SITRAK <tspan fill="#10b981">OBD</tspan>
+  </text>
+</svg>

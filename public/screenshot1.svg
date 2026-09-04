@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#020617"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="emeraldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#06b6d4"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#bg)"/>
+  
+  <!-- Header Bar -->
+  <rect x="0" y="0" width="1280" height="64" fill="#0f172a" stroke="#1e293b" stroke-width="2"/>
+  <text x="32" y="40" font-family="system-ui, sans-serif" font-weight="900" font-size="22" fill="#ffffff">SITRAK <tspan fill="#f59e0b">S7H 480</tspan> OBD-II</text>
+  <text x="320" y="40" font-family="system-ui, sans-serif" font-weight="600" font-size="14" fill="#10b981">CAN J1939 250k: ONLINE</text>
+  <text x="560" y="40" font-family="system-ui, sans-serif" font-weight="600" font-size="14" fill="#38bdf8">Бортсеть: 28.4V</text>
+  <text x="740" y="40" font-family="system-ui, sans-serif" font-weight="600" font-size="14" fill="#a855f7">TraXon AMT: 8-я передача</text>
+
+  <!-- Gauge 1: Tachometer -->
+  <g transform="translate(240, 360)">
+    <circle cx="0" cy="0" r="160" fill="#090d16" stroke="#1e293b" stroke-width="8"/>
+    <circle cx="0" cy="0" r="150" fill="none" stroke="#10b981" stroke-width="6" stroke-dasharray="400 600"/>
+    <text x="0" y="-30" text-anchor="middle" font-family="monospace" font-weight="900" font-size="44" fill="#ffffff">1 420</text>
+    <text x="0" y="20" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="700" font-size="16" fill="#64748b">ОБ / МИН (RPM)</text>
+    <line x1="0" y1="0" x2="60" y2="-90" stroke="#f59e0b" stroke-width="6" stroke-linecap="round"/>
+  </g>
+
+  <!-- Gauge 2: Speedometer -->
+  <g transform="translate(640, 360)">
+    <circle cx="0" cy="0" r="180" fill="#090d16" stroke="#1e293b" stroke-width="8"/>
+    <circle cx="0" cy="0" r="170" fill="none" stroke="#06b6d4" stroke-width="8" stroke-dasharray="500 700"/>
+    <text x="0" y="-35" text-anchor="middle" font-family="monospace" font-weight="900" font-size="56" fill="#38bdf8">78</text>
+    <text x="0" y="25" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="700" font-size="18" fill="#64748b">КМ / Ч (SPEED)</text>
+    <line x1="0" y1="0" x2="80" y2="-80" stroke="#06b6d4" stroke-width="7" stroke-linecap="round"/>
+  </g>
+
+  <!-- Gauge 3: Boost Pressure -->
+  <g transform="translate(1040, 360)">
+    <circle cx="0" cy="0" r="160" fill="#090d16" stroke="#1e293b" stroke-width="8"/>
+    <circle cx="0" cy="0" r="150" fill="none" stroke="#a855f7" stroke-width="6" stroke-dasharray="350 600"/>
+    <text x="0" y="-30" text-anchor="middle" font-family="monospace" font-weight="900" font-size="44" fill="#ffffff">1.85</text>
+    <text x="0" y="20" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="700" font-size="16" fill="#64748b">НАДДУВ (BAR)</text>
+    <line x1="0" y1="0" x2="50" y2="-90" stroke="#a855f7" stroke-width="6" stroke-linecap="round"/>
+  </g>
+
+  <!-- Bottom Metric Cards -->
+  <g transform="translate(80, 580)">
+    <rect x="0" y="0" width="240" height="90" rx="16" fill="#0f172a" stroke="#1e293b" stroke-width="2"/>
+    <text x="20" y="35" font-family="system-ui, sans-serif" font-size="13" fill="#94a3b8">ОЖ (Coolant):</text>
+    <text x="20" y="70" font-family="monospace" font-weight="700" font-size="24" fill="#10b981">88 °C</text>
+  </g>
+
+  <g transform="translate(360, 580)">
+    <rect x="0" y="0" width="240" height="90" rx="16" fill="#0f172a" stroke="#1e293b" stroke-width="2"/>
+    <text x="20" y="35" font-family="system-ui, sans-serif" font-size="13" fill="#94a3b8">Давление масла:</text>
+    <text x="20" y="70" font-family="monospace" font-weight="700" font-size="24" fill="#38bdf8">4.2 Bar</text>
+  </g>
+
+  <g transform="translate(640, 580)">
+    <rect x="0" y="0" width="240" height="90" rx="16" fill="#0f172a" stroke="#1e293b" stroke-width="2"/>
+    <text x="20" y="35" font-family="system-ui, sans-serif" font-size="13" fill="#94a3b8">Пневмоконтур 1/2:</text>
+    <text x="20" y="70" font-family="monospace" font-weight="700" font-size="24" fill="#10b981">11.8 / 12.0 Bar</text>
+  </g>
+
+  <g transform="translate(920, 580)">
+    <rect x="0" y="0" width="280" height="90" rx="16" fill="#0f172a" stroke="#1e293b" stroke-width="2"/>
+    <text x="20" y="35" font-family="system-ui, sans-serif" font-size="13" fill="#94a3b8">Расход AdBlue / Мочевина:</text>
+    <text x="20" y="70" font-family="monospace" font-weight="700" font-size="24" fill="#a855f7">74% (SCR OK)</text>
+  </g>
+</svg>

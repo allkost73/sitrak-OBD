@@ -1,0 +1,96 @@
+{
+  "id": "/",
+  "name": "Sitrak S7H Diagnostics & Tuning",
+  "short_name": "Sitrak OBD",
+  "description": "Android-приложение для профессиональной диагностики, считывания кодов неисправностей DTC J1939, мониторинга CAN-телеметрии и настройки тягачей Sitrak S7H / C7H 480 через адаптеры ELM327 и ELM375.",
+  "lang": "ru-RU",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "fullscreen"],
+  "orientation": "any",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot-wide.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Панель приборов и CAN телеметрия тягача Sitrak S7H"
+    },
+    {
+      "src": "/screenshot-mobile.png",
+      "sizes": "720x1280",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Сканер кодов ошибок DTC J1939 и расшифровка блоков"
+    }
+  ],
+  "categories": ["utilities", "auto", "productivity", "transportation"],
+  "prefer_related_applications": false,
+  "related_applications": [],
+  "shortcuts": [
+    {
+      "name": "Панель приборов",
+      "short_name": "Приборы",
+      "url": "/?tab=dashboard",
+      "description": "Живые приборы и CAN телеметрия",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Сканер кодов DTC",
+      "short_name": "Ошибки",
+      "url": "/?tab=dtc",
+      "description": "Считывание и сброс ошибок ЭБУ",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "АКПП TraXon",
+      "short_name": "TraXon",
+      "url": "/?tab=tuning",
+      "description": "Самоадаптация коробки передач",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Пневматика WABCO",
+      "short_name": "Пневмо",
+      "url": "/?tab=pneumatics",
+      "description": "Контуры давления 1-4 и тормоза EBS3",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

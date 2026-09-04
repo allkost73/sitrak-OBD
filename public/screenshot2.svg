@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720">
+  <defs>
+    <linearGradient id="bg2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#020617"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#bg2)"/>
+  
+  <!-- Header Bar -->
+  <rect x="0" y="0" width="1280" height="64" fill="#0f172a" stroke="#1e293b" stroke-width="2"/>
+  <text x="32" y="40" font-family="system-ui, sans-serif" font-weight="900" font-size="22" fill="#ffffff">SITRAK <tspan fill="#f59e0b">S7H 480</tspan> — Сканер кодов DTC J1939</text>
+  <text x="560" y="40" font-family="system-ui, sans-serif" font-weight="600" font-size="14" fill="#10b981">Опрос шины: Bosch EDC17, TraXon, EBS3</text>
+
+  <!-- Fault Code Card 1 -->
+  <g transform="translate(60, 100)">
+    <rect x="0" y="0" width="1160" height="150" rx="16" fill="#0f172a" stroke="#ef4444" stroke-width="2"/>
+    <rect x="20" y="20" width="160" height="36" rx="8" fill="#ef4444" fill-opacity="0.2"/>
+    <text x="100" y="44" text-anchor="middle" font-family="monospace" font-weight="900" font-size="18" fill="#f87171">SPN 4334 / FMI 3</text>
+    <text x="200" y="44" font-family="system-ui, sans-serif" font-weight="700" font-size="18" fill="#ffffff">Датчик давления мочевины SCR (DeNOx 2.2)</text>
+    <text x="20" y="90" font-family="system-ui, sans-serif" font-size="14" fill="#cbd5e1">Блок: Двигатель Bosch EDC17CV44 (MC11/MC13). Напряжение датчика выше нормы / короткое замыкание на +24V.</text>
+    <text x="20" y="125" font-family="system-ui, sans-serif" font-weight="600" font-size="13" fill="#10b981">Рекомендация: Проверить разъем модуля дозирования AdBlue и предохранитель F18.</text>
+  </g>
+
+  <!-- Fault Code Card 2 -->
+  <g transform="translate(60, 280)">
+    <rect x="0" y="0" width="1160" height="150" rx="16" fill="#0f172a" stroke="#f59e0b" stroke-width="2"/>
+    <rect x="20" y="20" width="160" height="36" rx="8" fill="#f59e0b" fill-opacity="0.2"/>
+    <text x="100" y="44" text-anchor="middle" font-family="monospace" font-weight="900" font-size="18" fill="#fbbf24">SPN 190 / FMI 0</text>
+    <text x="200" y="44" font-family="system-ui, sans-serif" font-weight="700" font-size="18" fill="#ffffff">Превышение предельных оборотов двигателя (Engine Overspeed)</text>
+    <text x="20" y="90" font-family="system-ui, sans-serif" font-size="14" fill="#cbd5e1">Блок: Двигатель Bosch EDC17. Зафиксированы обороты выше 2650 об/мин при торможении горным тормозом EVB.</text>
+    <text x="20" y="125" font-family="system-ui, sans-serif" font-weight="600" font-size="13" fill="#10b981">Рекомендация: Проверить регулировку зазоров декомпрессионного клапана EVB (0.40 мм).</text>
+  </g>
+
+  <!-- Action Bar -->
+  <g transform="translate(60, 480)">
+    <rect x="0" y="0" width="1160" height="100" rx="16" fill="#090d16" stroke="#1e293b" stroke-width="2"/>
+    <text x="30" y="55" font-family="system-ui, sans-serif" font-weight="700" font-size="16" fill="#ffffff">Быстрые действия:</text>
+    <rect x="200" y="25" width="220" height="50" rx="12" fill="#10b981"/>
+    <text x="310" y="56" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="700" font-size="14" fill="#020617">ПЕРЕСКАНИРОВАТЬ ЭБУ</text>
+    
+    <rect x="440" y="25" width="220" height="50" rx="12" fill="#ef4444"/>
+    <text x="550" y="56" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="700" font-size="14" fill="#ffffff">СБРОСИТЬ ОШИБКИ (DM11)</text>
+
+    <rect x="680" y="25" width="240" height="50" rx="12" fill="#8b5cf6"/>
+    <text x="800" y="56" text-anchor="middle" font-family="system-ui, sans-serif" font-weight="700" font-size="14" fill="#ffffff">СПРОСИТЬ ИИ-ДИАГНОСТА</text>
+  </g>
+</svg>
