@@ -19,7 +19,8 @@ import {
   Layers,
   ArrowRight,
   Sparkles,
-  Info
+  Info,
+  UploadCloud
 } from "lucide-react";
 import confetti from "canvas-confetti";
 
@@ -86,17 +87,30 @@ jobs:
         with:
           node-version: 20
 
+      - name: 🤖 Настройка Android SDK 34 и лицензий
+        run: |
+          SDK_ROOT="\${ANDROID_HOME:-\${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          SDK_MGR=$(command -v sdkmanager || find "$SDK_ROOT" -name sdkmanager -type f 2>/dev/null | head -n 1 || true)
+          if [ -n "$SDK_MGR" ]; then
+            yes | "$SDK_MGR" --licenses >/dev/null 2>&1 || true
+            if [ ! -d "$SDK_ROOT/platforms/android-34" ] || [ ! -d "$SDK_ROOT/build-tools/34.0.0" ]; then
+              "$SDK_MGR" "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+            fi
+          fi
+
       - name: 📦 Установка зависимостей проекта
         run: |
           npm install --legacy-peer-deps
 
       - name: ⚡ Сборка веб-приложения (Vite Build)
         run: |
-          npm run build
+          npx vite build
 
       - name: 🔧 Установка Capacitor 6 (совместимо с Java 17)
         run: |
-          npm install --no-save @capacitor/core@^6.2.0 @capacitor/cli@^6.2.0 @capacitor/android@^6.2.0
+          npm install --no-save --legacy-peer-deps @capacitor/core@^6.2.0 @capacitor/cli@^6.2.0 @capacitor/android@^6.2.0
 
       - name: 📱 Инициализация Android платформы
         run: |
@@ -114,47 +128,65 @@ jobs:
             if (fs.existsSync(file)) {
               let content = fs.readFileSync(file, "utf8");
               const perms = [
-                "<uses-permission android:name=\\"android.permission.BLUETOOTH\\" />",
-                "<uses-permission android:name=\\"android.permission.BLUETOOTH_ADMIN\\" />",
+                "<uses-permission android:name=\\"android.permission.BLUETOOTH\\" android:maxSdkVersion=\\"30\\" />",
+                "<uses-permission android:name=\\"android.permission.BLUETOOTH_ADMIN\\" android:maxSdkVersion=\\"30\\" />",
                 "<uses-permission android:name=\\"android.permission.BLUETOOTH_CONNECT\\" />",
                 "<uses-permission android:name=\\"android.permission.BLUETOOTH_SCAN\\" android:usesPermissionFlags=\\"neverForLocation\\" />",
                 "<uses-permission android:name=\\"android.permission.ACCESS_FINE_LOCATION\\" />",
                 "<uses-permission android:name=\\"android.permission.ACCESS_COARSE_LOCATION\\" />",
-                "<uses-permission android:name=\\"android.permission.INTERNET\\" />",
-                "<uses-permission android:name=\\"android.permission.WAKE_LOCK\\" />"
+                "<uses-permission android:name=\\"android.permission.WAKE_LOCK\\" />",
+                "<uses-feature android:name=\\"android.hardware.bluetooth\\" android:required=\\"false\\" />"
               ];
-              perms.forEach(p => {
-                if (!content.includes(p)) {
-                  content = content.replace("<application", p + "\\n    <application");
-                }
-              });
+              const toAdd = perms.filter(p => !content.includes(p));
+              if (toAdd.length > 0) {
+                content = content.replace("<application", toAdd.join("\\n    ") + "\\n\\n    <application");
+              }
+              if (!content.includes("android:usesCleartextTraffic")) {
+                content = content.replace("<application", "<application\\n        android:usesCleartextTraffic=\\"true\\"");
+              }
               fs.writeFileSync(file, content, "utf8");
               console.log("AndroidManifest успешно обновлен с правами Bluetooth SPP");
             }
           '
 
       - name: 🔨 Компиляция APK через Gradle
+        env:
+          GRADLE_OPTS: "-Xmx2048m -Dorg.gradle.daemon=false -Dfile.encoding=UTF-8"
         run: |
           cd android
           chmod +x ./gradlew
-          ./gradlew assembleDebug --stacktrace
-          
-          if [ -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
-            cp app/build/outputs/apk/debug/app-debug.apk ../sitrak-s7h-diagnostics.apk
-            cp app/build/outputs/apk/debug/app-debug.apk ../sitrak-s7h-diagnostics-debug.apk
-            echo "✅ APK файл успешно создан!"
+          BUILD_TYPE="\${{ github.event.inputs.build_type || 'debug' }}"
+          if [ "$BUILD_TYPE" = "release" ]; then
+            ./gradlew assembleRelease --no-daemon --stacktrace
+            UNSIGNED_APK=$(find app/build/outputs/apk/release -name "*.apk" 2>/dev/null | head -n 1 || true)
+            if [ -n "$UNSIGNED_APK" ] && [ -f "$UNSIGNED_APK" ]; then
+              keytool -genkeypair -v -keystore /tmp/sitrak-temp.jks -alias sitrak -keyalg RSA -keysize 2048 -validity 10000 -storepass sitrak123 -keypass sitrak123 -dname "CN=Sitrak Diagnostics,O=Sitrak,C=RU"
+              APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -n 1)
+              ZIPALIGN=$(find "$ANDROID_HOME/build-tools" -name zipalign | sort -V | tail -n 1)
+              "$ZIPALIGN" -p -f 4 "$UNSIGNED_APK" /tmp/aligned.apk
+              "$APKSIGNER" sign --ks /tmp/sitrak-temp.jks --ks-pass pass:sitrak123 --key-pass pass:sitrak123 --out ../sitrak-s7h-diagnostics.apk /tmp/aligned.apk
+              echo "✅ Release APK успешно скомпилирован и подписан!"
+            else
+              echo "❌ Файл app-release-unsigned.apk не найден"
+              exit 1
+            fi
           else
-            find . -name "*.apk" -exec cp {} ../sitrak-s7h-diagnostics.apk \\;
+            ./gradlew assembleDebug --no-daemon --stacktrace
+            if [ -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
+              cp app/build/outputs/apk/debug/app-debug.apk ../sitrak-s7h-diagnostics.apk
+              echo "✅ Debug APK успешно скомпилирован!"
+            else
+              echo "❌ Файл app-debug.apk не найден"
+              exit 1
+            fi
           fi
 
       - name: 📤 Загрузка скомпилированного APK в артефакты сборки
         uses: actions/upload-artifact@v4
         with:
           name: sitrak-s7h-diagnostics-apk
-          path: |
-            sitrak-s7h-diagnostics*.apk
-            android/app/build/outputs/apk/**/*.apk
-          if-no-files-found: warn
+          path: sitrak-s7h-diagnostics.apk
+          if-no-files-found: error
           retention-days: 30
 
       - name: 🚀 Создание GitHub Release (при наличии тега v*)
@@ -188,13 +220,15 @@ export const GitHubActionsApkView: React.FC<GitHubActionsApkViewProps> = ({ onNa
   const [githubToken, setGithubToken] = useState<string>(() => {
     return localStorage.getItem("sitrak_gh_token") || "";
   });
-  const [buildType, setBuildType] = useState<"release" | "debug">("release");
+  const [buildType, setBuildType] = useState<"release" | "debug">("debug");
 
   // Workflow status state
   const [isTriggering, setIsTriggering] = useState<boolean>(false);
+  const [isUpdatingYaml, setIsUpdatingYaml] = useState<boolean>(false);
   const [isCheckingStatus, setIsCheckingStatus] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<{ type: "info" | "success" | "error"; text: string } | null>(null);
   const [latestRun, setLatestRun] = useState<GitHubWorkflowRun | null>(null);
+  const [failedStepInfo, setFailedStepInfo] = useState<string | null>(null);
   const [isCopiedYaml, setIsCopiedYaml] = useState<boolean>(false);
   const [showTokenInput, setShowTokenInput] = useState<boolean>(false);
 
@@ -266,6 +300,25 @@ export const GitHubActionsApkView: React.FC<GitHubActionsApkViewProps> = ({ onNa
       if (data.workflow_runs && data.workflow_runs.length > 0) {
         const run: GitHubWorkflowRun = data.workflow_runs[0];
         setLatestRun(run);
+        setFailedStepInfo(null);
+
+        if (run.conclusion === "failure") {
+          try {
+            const jobsRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/actions/runs/${run.id}/jobs`, {
+              headers,
+            });
+            if (jobsRes.ok) {
+              const jobsData = await jobsRes.json();
+              const failedJob = (jobsData.jobs || []).find((j: any) => j.conclusion === "failure");
+              const failedStep = failedJob?.steps?.find((s: any) => s.conclusion === "failure");
+              if (failedStep) {
+                setFailedStepInfo(`Шаг с ошибкой: «${failedStep.name}»`);
+              } else if (failedJob) {
+                setFailedStepInfo(`Задача «${failedJob.name}» завершилась с ошибкой`);
+              }
+            }
+          } catch {}
+        }
 
         if (run.conclusion === "success") {
           confetti({
@@ -370,6 +423,76 @@ export const GitHubActionsApkView: React.FC<GitHubActionsApkViewProps> = ({ onNa
     }
 
     setIsTriggering(false);
+  };
+
+  // Push fixed .github/workflows/build.yml directly to GitHub via Contents API
+  const handlePushWorkflowToGitHub = async () => {
+    const owner = repoOwner.trim();
+    const repo = repoName.trim();
+    const targetBranch = branch.trim() || "main";
+
+    if (!owner || !repo) {
+      setStatusMessage({ type: "error", text: "Укажите владельца и имя репозитория GitHub." });
+      return;
+    }
+
+    if (!githubToken.trim()) {
+      setShowTokenInput(true);
+      setStatusMessage({
+        type: "error",
+        text: "Укажите GitHub Personal Access Token (с правом 'repo' / 'workflow'), чтобы автоматически обновить build.yml на GitHub."
+      });
+      return;
+    }
+
+    setIsUpdatingYaml(true);
+    setStatusMessage({ type: "info", text: "Обновление .github/workflows/build.yml в репозитории GitHub..." });
+
+    try {
+      const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/.github/workflows/build.yml`;
+      const headers = {
+        Accept: "application/vnd.github.v3+json",
+        Authorization: `Bearer ${githubToken.trim()}`,
+        "Content-Type": "application/json",
+      };
+
+      let existingSha: string | undefined;
+      const getRes = await fetch(`${apiUrl}?ref=${encodeURIComponent(targetBranch)}`, { headers });
+      if (getRes.ok) {
+        const fileData = await getRes.json();
+        existingSha = fileData.sha;
+      }
+
+      const encodedContent = btoa(unescape(encodeURIComponent(WORKFLOW_YAML)));
+      const putRes = await fetch(apiUrl, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({
+          message: "fix(ci): update Android APK build.yml workflow",
+          content: encodedContent,
+          branch: targetBranch,
+          ...(existingSha ? { sha: existingSha } : {}),
+        }),
+      });
+
+      if (!putRes.ok) {
+        const err = await putRes.json().catch(() => ({}));
+        throw new Error(err.message || `Ошибка GitHub API (${putRes.status})`);
+      }
+
+      setStatusMessage({
+        type: "success",
+        text: "Файл .github/workflows/build.yml успешно обновлен в GitHub! Сборка APK запущена автоматически."
+      });
+      setTimeout(() => checkWorkflowStatus(true), 4000);
+    } catch (err: any) {
+      setStatusMessage({
+        type: "error",
+        text: `Не удалось обновить build.yml: ${err.message}. Скопируйте YAML ниже и вставьте вручную в GitHub.`
+      });
+    } finally {
+      setIsUpdatingYaml(false);
+    }
   };
 
   const handleCopyYaml = () => {
@@ -655,8 +778,8 @@ export const GitHubActionsApkView: React.FC<GitHubActionsApkViewProps> = ({ onNa
                   onChange={(e) => setBuildType(e.target.value as "release" | "debug")}
                   className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs font-mono text-slate-100 focus:outline-none focus:border-emerald-500 transition-colors"
                 >
-                  <option value="release">Release (Оптимизированный)</option>
-                  <option value="debug">Debug (Для отладки)</option>
+                  <option value="debug">Debug (Готов к установке сразу)</option>
+                  <option value="release">Release (Подписанный оптимизированный)</option>
                 </select>
               </div>
             </div>
@@ -675,7 +798,7 @@ export const GitHubActionsApkView: React.FC<GitHubActionsApkViewProps> = ({ onNa
               {showTokenInput && (
                 <div className="mt-2.5 p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
                   <label className="block text-[11px] font-semibold text-slate-300">
-                    GitHub Personal Access Token (classic или fine-grained с правами 'actions:write')
+                    GitHub Personal Access Token (classic с правом &apos;repo&apos; + &apos;workflow&apos; или fine-grained с &apos;contents:write&apos; + &apos;actions:write&apos;)
                   </label>
                   <input
                     id="input-gh-token"
@@ -693,7 +816,7 @@ export const GitHubActionsApkView: React.FC<GitHubActionsApkViewProps> = ({ onNa
             </div>
 
             {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-2 flex-wrap">
               <button
                 id="btn-trigger-gh-workflow"
                 onClick={handleTriggerWorkflow}
@@ -711,6 +834,17 @@ export const GitHubActionsApkView: React.FC<GitHubActionsApkViewProps> = ({ onNa
                     <span>Запустить сборку APK в GitHub Actions</span>
                   </>
                 )}
+              </button>
+
+              <button
+                id="btn-push-gh-workflow"
+                onClick={handlePushWorkflowToGitHub}
+                disabled={isUpdatingYaml}
+                className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold text-xs bg-blue-950/70 hover:bg-blue-900/70 text-blue-200 border border-blue-500/40 hover:border-blue-400 transition-all active:scale-95 disabled:opacity-50"
+                title="Загрузить исправленный .github/workflows/build.yml в репозиторий через GitHub API"
+              >
+                <UploadCloud className={`w-4 h-4 text-blue-400 ${isUpdatingYaml ? "animate-pulse" : ""}`} />
+                <span>{isUpdatingYaml ? "Загрузка..." : "Обновить build.yml"}</span>
               </button>
 
               <button
@@ -750,7 +884,7 @@ export const GitHubActionsApkView: React.FC<GitHubActionsApkViewProps> = ({ onNa
                 <div>
                   <b className="text-slate-100">Workflow файл уже создан в репозитории:</b>
                   <p className="text-slate-400 text-[11px] mt-0.5">
-                    Файл <code className="text-emerald-300">.github/workflows/build-apk.yml</code> находится в корне проекта и готов к работе.
+                    Файл <code className="text-emerald-300">.github/workflows/build.yml</code> находится в корне проекта и готов к работе.
                   </p>
                 </div>
               </div>
@@ -885,17 +1019,31 @@ export const GitHubActionsApkView: React.FC<GitHubActionsApkViewProps> = ({ onNa
                         <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
                         <span>Причина красного крестика и решение:</span>
                       </div>
+                      {failedStepInfo && (
+                        <div className="px-2.5 py-1.5 rounded-lg bg-red-950/60 border border-red-500/30 text-[11px] font-mono text-red-200">
+                          {failedStepInfo}
+                        </div>
+                      )}
                       <p className="text-[11px] text-slate-300 leading-relaxed">
-                        В предыдущей версии манифеста сборка падала из-за отсутствия файла кэша <code className="text-amber-300">package-lock.json</code> либо конфликта версий Android SDK. Мы исправили код workflow!
+                        Сборка может падать из-за устаревшего <code className="text-amber-300">build.yml</code>, отсутствия лицензий/компонентов Android SDK 34 на раннере <code className="text-amber-300">ubuntu-latest</code> или конфликта peer-зависимостей при установке Capacitor. Обновите <code className="text-emerald-300">.github/workflows/build.yml</code> на исправленную версию!
                       </p>
                       <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={handlePushWorkflowToGitHub}
+                          disabled={isUpdatingYaml}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-semibold transition-colors disabled:opacity-50"
+                        >
+                          <UploadCloud className="w-3.5 h-3.5" />
+                          <span>{isUpdatingYaml ? "Отправка..." : "Обновить в GitHub (API)"}</span>
+                        </button>
                         <a
                           href={editWorkflowDirectUrl}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg bg-red-950/60 hover:bg-red-900/60 border border-red-500/40 text-red-200 text-[11px] font-semibold transition-colors text-center"
                         >
-                          <span>Редактировать build.yml в GitHub</span>
+                          <span>Редактировать build.yml</span>
                           <ExternalLink className="w-3 h-3" />
                         </a>
                         <button
@@ -906,7 +1054,7 @@ export const GitHubActionsApkView: React.FC<GitHubActionsApkViewProps> = ({ onNa
                           {isCopiedYaml ? (
                             <span className="text-emerald-400">Скопировано!</span>
                           ) : (
-                            <span>Скопировать исправленный код</span>
+                            <span>Скопировать YAML</span>
                           )}
                         </button>
                       </div>
@@ -961,7 +1109,7 @@ export const GitHubActionsApkView: React.FC<GitHubActionsApkViewProps> = ({ onNa
           <div className="flex items-center gap-2">
             <FileCode className="w-4 h-4 text-emerald-400" />
             <h2 className="text-sm font-bold text-white">
-              Конфигурация GitHub Actions: <code className="text-emerald-400 font-mono text-xs">.github/workflows/build-apk.yml</code>
+              Конфигурация GitHub Actions: <code className="text-emerald-400 font-mono text-xs">.github/workflows/build.yml</code>
             </h2>
           </div>
 

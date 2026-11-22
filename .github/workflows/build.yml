@@ -38,17 +38,30 @@ jobs:
         with:
           node-version: 20
 
+      - name: 🤖 Настройка Android SDK 34 и лицензий
+        run: |
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          SDK_MGR=$(command -v sdkmanager || find "$SDK_ROOT" -name sdkmanager -type f 2>/dev/null | head -n 1 || true)
+          if [ -n "$SDK_MGR" ]; then
+            yes | "$SDK_MGR" --licenses >/dev/null 2>&1 || true
+            if [ ! -d "$SDK_ROOT/platforms/android-34" ] || [ ! -d "$SDK_ROOT/build-tools/34.0.0" ]; then
+              "$SDK_MGR" "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+            fi
+          fi
+
       - name: 📦 Установка зависимостей проекта
         run: |
           npm install --legacy-peer-deps
 
       - name: ⚡ Сборка веб-приложения (Vite Build)
         run: |
-          npm run build
+          npx vite build
 
       - name: 🔧 Установка Capacitor 6 (совместимо с Java 17)
         run: |
-          npm install --no-save @capacitor/core@^6.2.0 @capacitor/cli@^6.2.0 @capacitor/android@^6.2.0
+          npm install --no-save --legacy-peer-deps @capacitor/core@^6.2.0 @capacitor/cli@^6.2.0 @capacitor/android@^6.2.0
 
       - name: 📱 Инициализация Android платформы
         run: |
@@ -66,48 +79,65 @@ jobs:
             if (fs.existsSync(file)) {
               let content = fs.readFileSync(file, "utf8");
               const perms = [
-                "<uses-permission android:name=\"android.permission.BLUETOOTH\" />",
-                "<uses-permission android:name=\"android.permission.BLUETOOTH_ADMIN\" />",
+                "<uses-permission android:name=\"android.permission.BLUETOOTH\" android:maxSdkVersion=\"30\" />",
+                "<uses-permission android:name=\"android.permission.BLUETOOTH_ADMIN\" android:maxSdkVersion=\"30\" />",
                 "<uses-permission android:name=\"android.permission.BLUETOOTH_CONNECT\" />",
                 "<uses-permission android:name=\"android.permission.BLUETOOTH_SCAN\" android:usesPermissionFlags=\"neverForLocation\" />",
                 "<uses-permission android:name=\"android.permission.ACCESS_FINE_LOCATION\" />",
                 "<uses-permission android:name=\"android.permission.ACCESS_COARSE_LOCATION\" />",
-                "<uses-permission android:name=\"android.permission.INTERNET\" />",
-                "<uses-permission android:name=\"android.permission.WAKE_LOCK\" />"
+                "<uses-permission android:name=\"android.permission.WAKE_LOCK\" />",
+                "<uses-feature android:name=\"android.hardware.bluetooth\" android:required=\"false\" />"
               ];
-              perms.forEach(p => {
-                if (!content.includes(p)) {
-                  content = content.replace("<application", p + "\n    <application");
-                }
-              });
+              const toAdd = perms.filter(p => !content.includes(p));
+              if (toAdd.length > 0) {
+                content = content.replace("<application", toAdd.join("\n    ") + "\n\n    <application");
+              }
+              if (!content.includes("android:usesCleartextTraffic")) {
+                content = content.replace("<application", "<application\n        android:usesCleartextTraffic=\"true\"");
+              }
               fs.writeFileSync(file, content, "utf8");
               console.log("AndroidManifest успешно обновлен с правами Bluetooth SPP");
             }
           '
 
       - name: 🔨 Компиляция APK через Gradle
+        env:
+          GRADLE_OPTS: "-Xmx2048m -Dorg.gradle.daemon=false -Dfile.encoding=UTF-8"
         run: |
           cd android
           chmod +x ./gradlew
-          # Сборка готового к установке APK (assembleDebug не требует внешних секретных ключей подписи)
-          ./gradlew assembleDebug --stacktrace
-          
-          if [ -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
-            cp app/build/outputs/apk/debug/app-debug.apk ../sitrak-s7h-diagnostics.apk
-            cp app/build/outputs/apk/debug/app-debug.apk ../sitrak-s7h-diagnostics-debug.apk
-            echo "✅ APK файл успешно создан!"
+          BUILD_TYPE="${{ github.event.inputs.build_type || 'debug' }}"
+          if [ "$BUILD_TYPE" = "release" ]; then
+            ./gradlew assembleRelease --no-daemon --stacktrace
+            UNSIGNED_APK=$(find app/build/outputs/apk/release -name "*.apk" 2>/dev/null | head -n 1 || true)
+            if [ -n "$UNSIGNED_APK" ] && [ -f "$UNSIGNED_APK" ]; then
+              keytool -genkeypair -v -keystore /tmp/sitrak-temp.jks -alias sitrak -keyalg RSA -keysize 2048 -validity 10000 -storepass sitrak123 -keypass sitrak123 -dname "CN=Sitrak Diagnostics,O=Sitrak,C=RU"
+              APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -n 1)
+              ZIPALIGN=$(find "$ANDROID_HOME/build-tools" -name zipalign | sort -V | tail -n 1)
+              "$ZIPALIGN" -p -f 4 "$UNSIGNED_APK" /tmp/aligned.apk
+              "$APKSIGNER" sign --ks /tmp/sitrak-temp.jks --ks-pass pass:sitrak123 --key-pass pass:sitrak123 --out ../sitrak-s7h-diagnostics.apk /tmp/aligned.apk
+              echo "✅ Release APK успешно скомпилирован и подписан!"
+            else
+              echo "❌ Файл app-release-unsigned.apk не найден"
+              exit 1
+            fi
           else
-            find . -name "*.apk" -exec cp {} ../sitrak-s7h-diagnostics.apk \;
+            ./gradlew assembleDebug --no-daemon --stacktrace
+            if [ -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
+              cp app/build/outputs/apk/debug/app-debug.apk ../sitrak-s7h-diagnostics.apk
+              echo "✅ Debug APK успешно скомпилирован!"
+            else
+              echo "❌ Файл app-debug.apk не найден"
+              exit 1
+            fi
           fi
 
       - name: 📤 Загрузка скомпилированного APK в артефакты сборки
         uses: actions/upload-artifact@v4
         with:
           name: sitrak-s7h-diagnostics-apk
-          path: |
-            sitrak-s7h-diagnostics*.apk
-            android/app/build/outputs/apk/**/*.apk
-          if-no-files-found: warn
+          path: sitrak-s7h-diagnostics.apk
+          if-no-files-found: error
           retention-days: 30
 
       - name: 🚀 Создание GitHub Release (при наличии тега v*)
