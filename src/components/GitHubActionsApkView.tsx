@@ -52,6 +52,7 @@ const WORKFLOW_YAML = `name: Build Android APK (build)
 on:
   push:
     branches: [ '**' ]
+    tags: [ 'v*' ]
   workflow_dispatch:
     inputs:
       build_type:
@@ -165,18 +166,25 @@ jobs:
               ZIPALIGN=$(find "$ANDROID_HOME/build-tools" -name zipalign | sort -V | tail -n 1)
               "$ZIPALIGN" -p -f 4 "$UNSIGNED_APK" /tmp/aligned.apk
               "$APKSIGNER" sign --ks /tmp/sitrak-temp.jks --ks-pass pass:sitrak123 --key-pass pass:sitrak123 --out ../sitrak-s7h-diagnostics.apk /tmp/aligned.apk
+              ls -lh ../sitrak-s7h-diagnostics.apk
               echo "✅ Release APK успешно скомпилирован и подписан!"
             else
-              echo "❌ Файл app-release-unsigned.apk не найден"
+              echo "❌ Файл release APK не найден"
               exit 1
             fi
           else
             ./gradlew assembleDebug --no-daemon --stacktrace
-            if [ -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
-              cp app/build/outputs/apk/debug/app-debug.apk ../sitrak-s7h-diagnostics.apk
-              echo "✅ Debug APK успешно скомпилирован!"
+            DEBUG_APK="app/build/outputs/apk/debug/app-debug.apk"
+            if [ ! -f "$DEBUG_APK" ]; then
+              DEBUG_APK=$(find app/build/outputs/apk -name "*.apk" 2>/dev/null | head -n 1 || true)
+            fi
+            if [ -n "$DEBUG_APK" ] && [ -f "$DEBUG_APK" ]; then
+              cp -f "$DEBUG_APK" ../sitrak-s7h-diagnostics.apk
+              ls -lh ../sitrak-s7h-diagnostics.apk
+              echo "✅ Debug APK успешно скомпилирован и скопирован!"
             else
               echo "❌ Файл app-debug.apk не найден"
+              find app/build/outputs -maxdepth 4 2>/dev/null || true
               exit 1
             fi
           fi
@@ -189,12 +197,14 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: 🚀 Создание GitHub Release (при наличии тега v*)
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: 🚀 Публикация прямого APK в GitHub Releases
+        continue-on-error: true
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: \${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'latest' }}
+          name: "Sitrak S7H Diagnostics APK (\${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || 'Latest' }})"
+          make_latest: true
           files: sitrak-s7h-diagnostics.apk
-          name: "Sitrak S7H Diagnostics APK \${{ github.ref_name }}"
           body: |
             Готовый установочный пакет Android APK для тягачей Sitrak S7H / C7H.
             - Поддержка ELM327 Bluetooth (протокол J1939)
@@ -229,8 +239,36 @@ export const GitHubActionsApkView: React.FC<GitHubActionsApkViewProps> = ({ onNa
   const [statusMessage, setStatusMessage] = useState<{ type: "info" | "success" | "error"; text: string } | null>(null);
   const [latestRun, setLatestRun] = useState<GitHubWorkflowRun | null>(null);
   const [failedStepInfo, setFailedStepInfo] = useState<string | null>(null);
+  const [directApkAsset, setDirectApkAsset] = useState<{ url: string; name: string; sizeMb: string } | null>(null);
+  const [artifactInfo, setArtifactInfo] = useState<{ id: number; name: string; sizeMb: string } | null>(null);
+  const [isDownloadingArtifact, setIsDownloadingArtifact] = useState<boolean>(false);
   const [isCopiedYaml, setIsCopiedYaml] = useState<boolean>(false);
+  const [isCopiedApkLink, setIsCopiedApkLink] = useState<boolean>(false);
   const [showTokenInput, setShowTokenInput] = useState<boolean>(false);
+
+  const copyTextSafely = async (text: string): Promise<boolean> => {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch {}
+    try {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      textarea.style.top = "0";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(textarea);
+      return ok;
+    } catch {
+      return false;
+    }
+  };
 
   // Save repo info to localStorage
   const handleSaveRepoSettings = () => {
@@ -301,6 +339,42 @@ export const GitHubActionsApkView: React.FC<GitHubActionsApkViewProps> = ({ onNa
         const run: GitHubWorkflowRun = data.workflow_runs[0];
         setLatestRun(run);
         setFailedStepInfo(null);
+        setDirectApkAsset(null);
+        setArtifactInfo(null);
+
+        // Query latest release asset for direct .apk download
+        try {
+          const relRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/latest`, { headers });
+          if (relRes.ok) {
+            const relData = await relRes.json();
+            const apkAsset = (relData.assets || []).find((a: any) => String(a.name).endsWith(".apk"));
+            if (apkAsset?.browser_download_url) {
+              setDirectApkAsset({
+                url: apkAsset.browser_download_url,
+                name: apkAsset.name,
+                sizeMb: ((apkAsset.size || 0) / (1024 * 1024)).toFixed(1),
+              });
+            }
+          }
+        } catch {}
+
+        // Query run artifacts
+        if (run.conclusion === "success") {
+          try {
+            const artRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/actions/runs/${run.id}/artifacts`, { headers });
+            if (artRes.ok) {
+              const artData = await artRes.json();
+              const art = (artData.artifacts || [])[0];
+              if (art) {
+                setArtifactInfo({
+                  id: art.id,
+                  name: art.name,
+                  sizeMb: ((art.size_in_bytes || 0) / (1024 * 1024)).toFixed(1),
+                });
+              }
+            }
+          } catch {}
+        }
 
         if (run.conclusion === "failure") {
           try {
@@ -495,10 +569,50 @@ export const GitHubActionsApkView: React.FC<GitHubActionsApkViewProps> = ({ onNa
     }
   };
 
-  const handleCopyYaml = () => {
-    navigator.clipboard.writeText(WORKFLOW_YAML);
-    setIsCopiedYaml(true);
-    setTimeout(() => setIsCopiedYaml(false), 2500);
+  const handleCopyYaml = async () => {
+    const ok = await copyTextSafely(WORKFLOW_YAML);
+    if (ok) {
+      setIsCopiedYaml(true);
+      setTimeout(() => setIsCopiedYaml(false), 2500);
+    } else {
+      setStatusMessage({ type: "error", text: "Браузер заблокировал буфер обмена. Нажмите «Скачать файл» для сохранения build.yml." });
+    }
+  };
+
+  const handleCopyApkLink = async (url: string) => {
+    const ok = await copyTextSafely(url);
+    if (ok) {
+      setIsCopiedApkLink(true);
+      setStatusMessage({ type: "success", text: "Ссылка на APK скопирована в буфер обмена!" });
+      setTimeout(() => setIsCopiedApkLink(false), 2500);
+    }
+  };
+
+  const handleDownloadArtifactZip = async () => {
+    if (!artifactInfo || !githubToken.trim()) return;
+    const owner = repoOwner.trim();
+    const repo = repoName.trim();
+    setIsDownloadingArtifact(true);
+    try {
+      const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/actions/artifacts/${artifactInfo.id}/zip`, {
+        headers: {
+          Accept: "application/vnd.github.v3+json",
+          Authorization: `Bearer ${githubToken.trim()}`,
+        },
+      });
+      if (!res.ok) throw new Error(`Ошибка загрузки артефакта (${res.status})`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${artifactInfo.name}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      setStatusMessage({ type: "error", text: err.message || "Не удалось скачать архив артефакта" });
+    } finally {
+      setIsDownloadingArtifact(false);
+    }
   };
 
   const handleDownloadYaml = () => {
@@ -989,27 +1103,79 @@ export const GitHubActionsApkView: React.FC<GitHubActionsApkViewProps> = ({ onNa
                   </div>
 
                   {/* Actions inside status card */}
-                  <div className="flex items-center gap-2 pt-2">
-                    <a
-                      href={latestRun.html_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors text-center"
-                    >
-                      <span>Открыть ошибку в GitHub</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-
-                    {latestRun.conclusion === "success" && (
+                  <div className="flex flex-col gap-2 pt-2">
+                    <div className="flex items-center gap-2">
                       <a
-                        href={`${latestRun.html_url}#artifacts`}
+                        href={latestRun.html_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold transition-all shadow-md active:scale-95 text-center"
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors text-center"
                       >
-                        <Download className="w-3.5 h-3.5" />
-                        <span>Скачать APK</span>
+                        <span>{latestRun.conclusion === "failure" ? "Открыть ошибку в GitHub" : "Открыть в GitHub"}</span>
+                        <ExternalLink className="w-3 h-3" />
                       </a>
+
+                      {latestRun.conclusion === "success" && (
+                        <a
+                          href={directApkAsset ? directApkAsset.url : `${latestRun.html_url}#artifacts`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold transition-all shadow-md active:scale-95 text-center"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>
+                            {directApkAsset ? `Скачать .apk (${directApkAsset.sizeMb} MB)` : "Скачать APK"}
+                          </span>
+                        </a>
+                      )}
+                    </div>
+
+                    {latestRun.conclusion === "success" && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleCopyApkLink(directApkAsset ? directApkAsset.url : `${latestRun.html_url}#artifacts`)}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 text-[11px] font-semibold border border-slate-700 transition-colors"
+                        >
+                          {isCopiedApkLink ? (
+                            <>
+                              <Check className="w-3 h-3 text-emerald-400" />
+                              <span className="text-emerald-400">Ссылка скопирована!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3 h-3 text-emerald-400" />
+                              <span>Копировать ссылку на APK</span>
+                            </>
+                          )}
+                        </button>
+
+                        {artifactInfo && (
+                          githubToken.trim() ? (
+                            <button
+                              type="button"
+                              onClick={handleDownloadArtifactZip}
+                              disabled={isDownloadingArtifact}
+                              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 text-[11px] font-semibold border border-slate-700 transition-colors disabled:opacity-50"
+                            >
+                              <Package className="w-3 h-3 text-amber-400" />
+                              <span>
+                                {isDownloadingArtifact ? "Загрузка..." : `Архив (.zip, ${artifactInfo.sizeMb} MB)`}
+                              </span>
+                            </button>
+                          ) : (
+                            <a
+                              href={`${latestRun?.html_url || ghActionsUrl}#artifacts`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 text-[11px] font-semibold border border-slate-700 transition-colors text-center"
+                            >
+                              <Package className="w-3 h-3 text-amber-400" />
+                              <span>{`Архив (.zip, ${artifactInfo.sizeMb} MB)`}</span>
+                            </a>
+                          )
+                        )}
+                      </div>
                     )}
                   </div>
 
